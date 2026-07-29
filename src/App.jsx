@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
-  LayoutDashboard, Users, UserCog, Package, ArrowLeftRight, Wallet,
+  LayoutDashboard, Users, Package, ArrowLeftRight, Wallet,
   CalendarDays, Plus, Pencil, Trash2, Check, X, Clock, AlertTriangle,
-  Loader2, Menu, PaintBucket, ChevronLeft, ChevronRight, ClipboardCheck, LogOut
+  Loader2, Menu, ChevronLeft, ChevronRight, ClipboardCheck, LogOut
 } from "lucide-react";
 import { doc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase.js";
 import Login from "./Login.jsx";
 import InstallButton from "./InstallButton.jsx";
+import logo from "./assets/logo-256.png";
 
 /* ---------------------------------------------------------
    PALETTE & TYPE — "studio kanvas": tinta gelap di atas kertas,
@@ -83,11 +84,11 @@ const DEFAULT_KAS = { config: { startMonth: "2026-08", endMonth: "2027-04" }, se
    STORAGE HOOK — Firestore realtime, semua data bersama
    supaya kasub/wakasub/humas lihat data yang sama, live.
 --------------------------------------------------------- */
-const KEYS = { anggota: "sr-anggota", pengurus: "sr-pengurus", inventaris: "sr-inventaris", peminjaman: "sr-peminjaman", kas: "sr-kas", agenda: "sr-agenda", absensi: "sr-absensi" };
+const KEYS = { anggota: "sr-anggota", inventaris: "sr-inventaris", peminjaman: "sr-peminjaman", kas: "sr-kas", agenda: "sr-agenda", absensi: "sr-absensi" };
 const COLLECTION = "subrupa-data";
 
 function useSharedStore() {
-  const [data, setData] = useState({ anggota: [], pengurus: [], inventaris: [], peminjaman: [], kas: DEFAULT_KAS, agenda: [], absensi: {} });
+  const [data, setData] = useState({ anggota: [], inventaris: [], peminjaman: [], kas: DEFAULT_KAS, agenda: [], absensi: {} });
   const [loaded, setLoaded] = useState({});
   const [error, setError] = useState(null);
 
@@ -594,7 +595,7 @@ function DashboardView({ data, goto, session }) {
         <Card>
           <div className="flex items-center gap-2 mb-2"><Users size={16} style={{ color: C.ochre }} /><h3 className="font-display text-base" style={{ color: C.ink }}>Anggota</h3></div>
           <p className="font-display text-2xl" style={{ color: C.ink }}>{data.anggota.length}</p>
-          <p className="font-body text-xs mt-1" style={{ color: C.inkSoft }}>{data.pengurus.length} pengurus aktif</p>
+          <p className="font-body text-xs mt-1" style={{ color: C.inkSoft }}>anggota aktif tercatat</p>
           <div className="mt-3"><Btn onClick={() => goto("anggota")}>Buka Anggota →</Btn></div>
         </Card>
       </div>
@@ -773,7 +774,6 @@ function AbsensiView({ agenda, absensi, setAbsensi, anggota }) {
 const NAV = [
   { key: "dashboard", label: "Beranda", icon: LayoutDashboard },
   { key: "anggota", label: "Anggota", icon: Users },
-  { key: "pengurus", label: "Pengurus", icon: UserCog },
   { key: "inventaris", label: "Inventaris", icon: Package },
   { key: "peminjaman", label: "Peminjaman", icon: ArrowLeftRight },
   { key: "kas", label: "Kas", icon: Wallet },
@@ -800,11 +800,6 @@ function MainApp({ session, onLogout }) {
     { key: "kelas", label: "Kelas" }, { key: "angkatan", label: "Angkatan" }, { key: "kontak", label: "No. HP/WA" },
     { key: "status", label: "Status", type: "select", options: ["Aktif", "Tidak Aktif"], default: "Aktif" },
   ];
-  const pengurusCols = [
-    { key: "nama", label: "Nama" }, { key: "nim", label: "NIM" }, { key: "jurusan", label: "Jurusan" },
-    { key: "jabatan", label: "Jabatan" }, { key: "kontak", label: "No. HP/WA" }, { key: "periode", label: "Periode" },
-  ];
-
   return (
     <div className="min-h-screen font-body flex" style={{ background: C.paper }}>
       <style>{FONTS}</style>
@@ -812,7 +807,7 @@ function MainApp({ session, onLogout }) {
       {/* Sidebar */}
       <aside className={`shrink-0 flex flex-col ${navOpen ? "fixed inset-0 z-40" : "hidden"} md:static md:flex md:w-56`} style={{ background: C.ink }}>
         <div className="p-5 flex items-center gap-2" style={{ borderBottom: `1px solid ${C.inkSoft}` }}>
-          <PaintBucket size={20} style={{ color: C.ochre }} />
+          <img src={logo} alt="Sub Rupa" className="w-8 h-8 rounded-sm object-cover" />
           <div><p className="font-display text-lg leading-none" style={{ color: C.paper }}>Sub Rupa</p><p className="font-mono text-[10px]" style={{ color: C.inkSoft }}>UKM Kesenian</p></div>
           <button className="ml-auto md:hidden" onClick={() => setNavOpen(false)}><X size={18} color={C.paper} /></button>
         </div>
@@ -849,7 +844,6 @@ function MainApp({ session, onLogout }) {
         <main className="flex-1 p-5 md:p-8 max-w-5xl w-full">
           {active === "dashboard" && <DashboardView data={data} goto={setActive} session={session} />}
           {active === "anggota" && <CrudSection title="Anggota" subtitle="Daftar anggota aktif Sub Rupa" icon={Users} columns={anggotaCols} rows={data.anggota} onChange={(v) => save("anggota", v)} sortKey="nama" />}
-          {active === "pengurus" && <CrudSection title="Pengurus" subtitle="Susunan pengurus periode berjalan" icon={UserCog} columns={pengurusCols} rows={data.pengurus} onChange={(v) => save("pengurus", v)} sortKey="jabatan" />}
           {active === "inventaris" && <InventarisView inventaris={data.inventaris} setInventaris={(v) => save("inventaris", v)} peminjaman={data.peminjaman} />}
           {active === "peminjaman" && <PeminjamanView peminjaman={data.peminjaman} setPeminjaman={(v) => save("peminjaman", v)} inventaris={data.inventaris} anggota={data.anggota} />}
           {active === "kas" && <KasView kas={data.kas} setKas={(v) => save("kas", v)} anggota={data.anggota} />}

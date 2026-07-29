@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { PaintBucket, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { USERS } from "./users.js";
 import InstallButton from "./InstallButton.jsx";
+import logo from "./assets/logo-256.png";
 
 const C = {
   ink: "#211C16", inkSoft: "#5B5347", paper: "#F6F1E7",
@@ -30,7 +31,7 @@ export default function Login({ onLogin }) {
     <div className="min-h-screen flex items-center justify-center font-sans px-4" style={{ background: C.paper }}>
       <form onSubmit={submit} className="w-full max-w-sm p-6 rounded-md" style={{ background: C.card, border: `1px solid ${C.line}` }}>
         <div className="flex items-center gap-2 mb-6">
-          <PaintBucket size={22} style={{ color: C.ochre }} />
+          <img src={logo} alt="Sub Rupa" className="w-9 h-9 rounded-sm object-cover" />
           <div>
             <p className="text-lg font-semibold leading-none" style={{ color: C.ink }}>Sub Rupa</p>
             <p className="text-[11px]" style={{ color: C.inkSoft }}>UKM Kesenian — Masuk</p>
