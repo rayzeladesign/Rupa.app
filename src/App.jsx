@@ -205,9 +205,9 @@ function CrudSection({ title, subtitle, icon: Icon, columns, rows, onChange, ext
       </div>
 
       <Card>
-        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(100px,1fr)) auto` }}>
+        <div className={`grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-${columns.length + 1}`}>
           {columns.map((c) => <Field key={c.key} label={c.label}>{renderInput(c, draft[c.key], (v) => setDraft({ ...draft, [c.key]: v }))}</Field>)}
-          <div className="flex items-end"><Btn variant="ochre" icon={Plus} onClick={add}>Tambah</Btn></div>
+          <div className="flex items-end col-span-2 sm:col-span-1"><Btn variant="ochre" icon={Plus} onClick={add}>Tambah</Btn></div>
         </div>
       </Card>
 
@@ -801,7 +801,7 @@ function MainApp({ session, onLogout }) {
     { key: "status", label: "Status", type: "select", options: ["Aktif", "Tidak Aktif"], default: "Aktif" },
   ];
   return (
-    <div className="min-h-screen font-body flex" style={{ background: C.paper }}>
+    <div className="min-h-screen font-body flex overflow-x-hidden" style={{ background: C.paper }}>
       <style>{FONTS}</style>
 
       {/* Sidebar */}
@@ -841,7 +841,7 @@ function MainApp({ session, onLogout }) {
 
         {error && <div className="px-4 py-2 font-body text-xs" style={{ background: C.rustSoft, color: C.rust }}>{error}</div>}
 
-        <main className="flex-1 p-5 md:p-8 max-w-5xl w-full">
+        <main className="flex-1 p-5 md:p-8 max-w-5xl w-full min-w-0">
           {active === "dashboard" && <DashboardView data={data} goto={setActive} session={session} />}
           {active === "anggota" && <CrudSection title="Anggota" subtitle="Daftar anggota aktif Sub Rupa" icon={Users} columns={anggotaCols} rows={data.anggota} onChange={(v) => save("anggota", v)} sortKey="nama" />}
           {active === "inventaris" && <InventarisView inventaris={data.inventaris} setInventaris={(v) => save("inventaris", v)} peminjaman={data.peminjaman} />}
