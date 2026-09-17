@@ -2,52 +2,21 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   LayoutDashboard, Users, Package, ArrowLeftRight, Wallet,
   CalendarDays, Plus, Pencil, Trash2, Check, X, Clock, AlertTriangle,
-  Loader2, Menu, ChevronLeft, ChevronRight, ClipboardCheck, LogOut
+  Loader2, Menu, ChevronLeft, ChevronRight, ClipboardCheck, LogOut,
+  Receipt, TrendingUp
 } from "lucide-react";
 import { doc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase.js";
 import Login from "./Login.jsx";
 import InstallButton from "./InstallButton.jsx";
+import TransaksiView from "./Transaksi.jsx";
+import { BarMasukKeluar, LineSaldo, DonutKebutuhan, Legend } from "./Charts.jsx";
+import { buildFinance } from "./finance.js";
+import {
+  C, FONTS, MONTHS_ID, todayISO, uid, rupiah, monthKeyLabel, generateMonthRange,
+  Btn, Field, Input, Select, Card, Empty, Badge,
+} from "./ui.jsx";
 import logo from "./assets/logo-256.png";
-
-/* ---------------------------------------------------------
-   PALETTE & TYPE — "studio kanvas": tinta gelap di atas kertas,
-   aksen ochre (cat sienna) & teal (cat tanah), garis rambut.
---------------------------------------------------------- */
-const C = {
-  ink: "#211C16", inkSoft: "#5B5347", paper: "#F6F1E7", paperAlt: "#EDE5D3",
-  card: "#FFFDF8", ochre: "#B9752B", ochreSoft: "#EFDCB9", teal: "#3C6E62",
-  tealSoft: "#DCE9E2", rust: "#A8452B", rustSoft: "#F1D9CD", line: "#DED2B4",
-  lineSoft: "#EAE1CB",
-};
-
-const FONTS = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
-.font-display{font-family:'Fraunces',serif;}
-.font-body{font-family:'Space Grotesk',sans-serif;}
-.font-mono{font-family:'IBM Plex Mono',monospace;}
-`;
-
-const MONTHS_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
-const todayISO = () => new Date().toISOString().slice(0, 10);
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const rupiah = (n) => "Rp" + (n || 0).toLocaleString("id-ID");
-
-function monthKeyLabel(key) {
-  const [y, m] = key.split("-").map(Number);
-  return `${MONTHS_ID[m - 1]} ${y}`;
-}
-function generateMonthRange(start, end) {
-  const [sy, sm] = start.split("-").map(Number);
-  const [ey, em] = end.split("-").map(Number);
-  const out = [];
-  let y = sy, m = sm;
-  while (y < ey || (y === ey && m <= em)) {
-    out.push(`${y}-${String(m).padStart(2, "0")}`);
-    m++; if (m > 12) { m = 1; y++; }
-  }
-  return out;
-}
 
 const SEED_INVENTARIS = [
   ["Kain kanvas","Bahan",8,"lembar"],["Kain satin putih","Bahan",2,"lembar"],
@@ -84,11 +53,11 @@ const DEFAULT_KAS = { config: { startMonth: "2026-08", endMonth: "2027-04" }, se
    STORAGE HOOK — Firestore realtime, semua data bersama
    supaya kasub/wakasub/humas lihat data yang sama, live.
 --------------------------------------------------------- */
-const KEYS = { anggota: "sr-anggota", inventaris: "sr-inventaris", peminjaman: "sr-peminjaman", kas: "sr-kas", agenda: "sr-agenda", absensi: "sr-absensi" };
+const KEYS = { anggota: "sr-anggota", inventaris: "sr-inventaris", peminjaman: "sr-peminjaman", kas: "sr-kas", agenda: "sr-agenda", absensi: "sr-absensi", transaksi: "sr-transaksi" };
 const COLLECTION = "subrupa-data";
 
 function useSharedStore() {
-  const [data, setData] = useState({ anggota: [], inventaris: [], peminjaman: [], kas: DEFAULT_KAS, agenda: [], absensi: {} });
+  const [data, setData] = useState({ anggota: [], inventaris: [], peminjaman: [], kas: DEFAULT_KAS, agenda: [], absensi: {}, transaksi: [] });
   const [loaded, setLoaded] = useState({});
   const [error, setError] = useState(null);
 
@@ -124,42 +93,6 @@ function useSharedStore() {
   }, []);
 
   return { data, save, loading, error };
-}
-
-/* ---------------------------------------------------------
-   UI PRIMITIVES
---------------------------------------------------------- */
-function Btn({ children, onClick, variant = "ghost", icon: Icon, type = "button", disabled }) {
-  const styles = {
-    solid: { background: C.ink, color: C.paper, border: `1px solid ${C.ink}` },
-    ochre: { background: C.ochre, color: "#fff", border: `1px solid ${C.ochre}` },
-    ghost: { background: "transparent", color: C.ink, border: `1px solid ${C.line}` },
-    danger: { background: "transparent", color: C.rust, border: `1px solid ${C.rust}` },
-  };
-  return (
-    <button type={type} onClick={onClick} disabled={disabled}
-      className="font-body inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-sm font-medium transition-opacity hover:opacity-75 disabled:opacity-40"
-      style={styles[variant]}>
-      {Icon && <Icon size={14} />}{children}
-    </button>
-  );
-}
-function Field({ label, children }) {
-  return <label className="flex flex-col gap-1 text-xs font-body" style={{ color: C.inkSoft }}>{label}{children}</label>;
-}
-function inputStyle() { return { background: C.card, border: `1px solid ${C.line}`, color: C.ink }; }
-function Input(props) { return <input {...props} className={"font-body px-2 py-1.5 rounded-sm text-sm outline-none focus:ring-1 " + (props.className || "")} style={inputStyle()} />; }
-function Select({ children, ...props }) { return <select {...props} className="font-body px-2 py-1.5 rounded-sm text-sm outline-none" style={inputStyle()}>{children}</select>; }
-function Card({ children, className = "" }) {
-  return <div className={"rounded-md p-4 " + className} style={{ background: C.card, border: `1px solid ${C.line}` }}>{children}</div>;
-}
-function Empty({ text }) {
-  return <div className="font-body text-sm text-center py-8 rounded-sm" style={{ color: C.inkSoft, background: C.paperAlt, border: `1px dashed ${C.line}` }}>{text}</div>;
-}
-function Badge({ children, tone = "ink" }) {
-  const map = { ink: [C.paperAlt, C.ink], teal: [C.tealSoft, C.teal], rust: [C.rustSoft, C.rust], ochre: [C.ochreSoft, C.ochre] };
-  const [bg, fg] = map[tone];
-  return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full" style={{ background: bg, color: fg }}>{children}</span>;
 }
 
 /* ---------------------------------------------------------
@@ -394,7 +327,7 @@ function PeminjamanView({ peminjaman, setPeminjaman, inventaris, anggota }) {
 const IURAN_MINGGUAN = 3000;
 const DANA_DARURAT = 200000;
 
-function KasView({ kas, setKas, anggota }) {
+function KasView({ kas, setKas, anggota, transaksi }) {
   const months = useMemo(() => generateMonthRange(kas.config.startMonth, kas.config.endMonth), [kas.config]);
   const [tab, setTab] = useState("mingguan");
   const [monthIdx, setMonthIdx] = useState(() => {
@@ -425,18 +358,8 @@ function KasView({ kas, setKas, anggota }) {
     return total;
   };
 
-  const rekapRows = useMemo(() => {
-    let saldoKum = 0;
-    return months.map((key) => {
-      const masukAnggota = monthlyMasukAnggota(key);
-      const b = kas.bulanan[key] || {};
-      const masukLain = Number(b.masukLain || 0);
-      const keluar = Number(b.keluar || 0);
-      const saldoBulan = masukAnggota + masukLain - keluar;
-      saldoKum += saldoBulan;
-      return { key, masukAnggota, masukLain, keluar, saldoBulan, saldoKum, bendahara: b.bendahara || "", keterangan: b.keterangan || "" };
-    });
-  }, [kas, anggota, months]);
+  const finance = useMemo(() => buildFinance({ kas, anggota, transaksi }), [kas, anggota, transaksi]);
+  const rekapRows = finance.rows;
 
   return (
     <div className="flex flex-col gap-4">
@@ -508,18 +431,28 @@ function KasView({ kas, setKas, anggota }) {
       )}
 
       {tab === "bulanan" && (
+        <>
+        <Card className="!py-3">
+          <p className="font-body text-xs" style={{ color: C.inkSoft }}>
+            Kolom <b>Transaksi</b> terisi otomatis dari menu Transaksi. Kolom <b>Penyesuaian</b> dipakai kalau ada angka lama atau koreksi yang tidak punya catatan transaksi.
+          </p>
+        </Card>
         <div className="overflow-x-auto rounded-md" style={{ border: `1px solid ${C.line}` }}>
           <table className="w-full text-sm font-body" style={{ background: C.card }}>
             <thead><tr style={{ background: C.paperAlt }}>
-              {["Bulan","Kas Masuk Anggota","Kas Masuk Lain","Pengeluaran","Saldo Bulan","Saldo Kumulatif","Bendahara/PJ"].map((h) => <th key={h} className="text-left px-3 py-2 font-medium" style={{ color: C.inkSoft }}>{h}</th>)}
+              {["Bulan","Setoran Anggota","Pemasukan (Transaksi)","Pengeluaran (Transaksi)","Penyesuaian Masuk","Penyesuaian Keluar","Total Masuk","Total Keluar","Saldo Bulan","Saldo Kumulatif","Bendahara/PJ"].map((h) => <th key={h} className="text-left px-3 py-2 font-medium whitespace-nowrap" style={{ color: C.inkSoft }}>{h}</th>)}
             </tr></thead>
             <tbody>
               {rekapRows.map((r) => (
                 <tr key={r.key} style={{ borderTop: `1px solid ${C.lineSoft}` }}>
-                  <td className="px-3 py-2">{monthKeyLabel(r.key)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{monthKeyLabel(r.key)}</td>
                   <td className="px-3 py-2 font-mono">{rupiah(r.masukAnggota)}</td>
-                  <td className="px-2 py-2 w-28"><Input type="number" value={r.masukLain} onChange={(e) => setBulanan(r.key, "masukLain", e.target.value)} /></td>
-                  <td className="px-2 py-2 w-28"><Input type="number" value={r.keluar} onChange={(e) => setBulanan(r.key, "keluar", e.target.value)} /></td>
+                  <td className="px-3 py-2 font-mono" style={{ color: C.teal }}>{rupiah(r.masukTrans)}</td>
+                  <td className="px-3 py-2 font-mono" style={{ color: C.rust }}>{rupiah(r.keluarTrans)}</td>
+                  <td className="px-2 py-2 w-24"><Input type="number" value={r.manualMasuk} onChange={(e) => setBulanan(r.key, "masukLain", e.target.value)} /></td>
+                  <td className="px-2 py-2 w-24"><Input type="number" value={r.manualKeluar} onChange={(e) => setBulanan(r.key, "keluar", e.target.value)} /></td>
+                  <td className="px-3 py-2 font-mono font-medium">{rupiah(r.masuk)}</td>
+                  <td className="px-3 py-2 font-mono font-medium">{rupiah(r.keluar)}</td>
                   <td className="px-3 py-2 font-mono">{rupiah(r.saldoBulan)}</td>
                   <td className="px-3 py-2 font-mono font-medium" style={{ color: C.teal }}>{rupiah(r.saldoKum)}</td>
                   <td className="px-2 py-2 w-32"><Input value={r.bendahara} onChange={(e) => setBulanan(r.key, "bendahara", e.target.value)} /></td>
@@ -528,6 +461,7 @@ function KasView({ kas, setKas, anggota }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );
@@ -543,8 +477,10 @@ function DashboardView({ data, goto, session }) {
   const barangTerlambat = barangDipinjam.filter((p) => p.rencanaKembali && p.rencanaKembali < today);
   const pengajuanMenunggu = data.peminjaman.filter((p) => p.status === "Menunggu");
 
-  const months = generateMonthRange(data.kas.config.startMonth, data.kas.config.endMonth);
+  const finance = buildFinance({ kas: data.kas, anggota: data.anggota, transaksi: data.transaksi || [] });
+  const months = finance.months;
   const curMonth = months.find((m) => m >= today.slice(0, 7)) || months[months.length - 1];
+  const rowBulanIni = finance.rows.find((r) => r.key === curMonth);
   let masukBulanIni = 0;
   data.anggota.forEach((a) => {
     const weeks = data.kas.setoran[a.id]?.[curMonth] || {};
@@ -577,6 +513,60 @@ function DashboardView({ data, goto, session }) {
             ))}
           </div>
         )}
+      </Card>
+
+      {/* RINGKASAN KEUANGAN */}
+      <Card>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={16} style={{ color: C.ochre }} />
+            <h3 className="font-display text-base" style={{ color: C.ink }}>Keuangan Sub Rupa</h3>
+          </div>
+          <Legend />
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 mb-5">
+          <div>
+            <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Total Pemasukan</p>
+            <p className="font-display text-lg md:text-xl" style={{ color: C.teal }}>{rupiah(finance.totals.masuk)}</p>
+          </div>
+          <div>
+            <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Total Pengeluaran</p>
+            <p className="font-display text-lg md:text-xl" style={{ color: C.rust }}>{rupiah(finance.totals.keluar)}</p>
+          </div>
+          <div>
+            <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Saldo Kas</p>
+            <p className="font-display text-lg md:text-xl" style={{ color: finance.totals.saldo < 0 ? C.rust : C.ink }}>{rupiah(finance.totals.saldo)}</p>
+          </div>
+        </div>
+
+        {finance.totals.masuk === 0 && finance.totals.keluar === 0 ? (
+          <p className="font-body text-sm" style={{ color: C.inkSoft }}>Belum ada data keuangan. Catat setoran di menu Kas atau pemasukan/pengeluaran di menu Transaksi.</p>
+        ) : (
+          <div className="flex flex-col gap-6">
+            <div>
+              <p className="font-body text-xs mb-2" style={{ color: C.inkSoft }}>Pemasukan vs pengeluaran per bulan</p>
+              <BarMasukKeluar rows={finance.rows} />
+            </div>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <p className="font-body text-xs mb-2" style={{ color: C.inkSoft }}>Saldo kumulatif</p>
+                <LineSaldo rows={finance.rows} />
+              </div>
+              {finance.keluarPerKebutuhan.length > 0 && (
+                <div>
+                  <p className="font-body text-xs mb-2" style={{ color: C.inkSoft }}>Pengeluaran per kebutuhan</p>
+                  <DonutKebutuhan items={finance.keluarPerKebutuhan} title="Pengeluaran per kebutuhan" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 flex gap-2 flex-wrap">
+          <Btn variant="ochre" onClick={() => goto("transaksi")}>Catat Transaksi →</Btn>
+          <Btn onClick={() => goto("kas")}>Rekap Kas →</Btn>
+        </div>
       </Card>
 
       <div className="grid md:grid-cols-3 gap-4">
@@ -777,6 +767,7 @@ const NAV = [
   { key: "inventaris", label: "Inventaris", icon: Package },
   { key: "peminjaman", label: "Peminjaman", icon: ArrowLeftRight },
   { key: "kas", label: "Kas", icon: Wallet },
+  { key: "transaksi", label: "Transaksi", icon: Receipt },
   { key: "agenda", label: "Agenda", icon: CalendarDays },
   { key: "absensi", label: "Absensi", icon: ClipboardCheck },
 ];
@@ -846,7 +837,8 @@ function MainApp({ session, onLogout }) {
           {active === "anggota" && <CrudSection title="Anggota" subtitle="Daftar anggota aktif Sub Rupa" icon={Users} columns={anggotaCols} rows={data.anggota} onChange={(v) => save("anggota", v)} sortKey="nama" />}
           {active === "inventaris" && <InventarisView inventaris={data.inventaris} setInventaris={(v) => save("inventaris", v)} peminjaman={data.peminjaman} />}
           {active === "peminjaman" && <PeminjamanView peminjaman={data.peminjaman} setPeminjaman={(v) => save("peminjaman", v)} inventaris={data.inventaris} anggota={data.anggota} />}
-          {active === "kas" && <KasView kas={data.kas} setKas={(v) => save("kas", v)} anggota={data.anggota} />}
+          {active === "kas" && <KasView kas={data.kas} setKas={(v) => save("kas", v)} anggota={data.anggota} transaksi={data.transaksi || []} />}
+          {active === "transaksi" && <TransaksiView transaksi={data.transaksi || []} setTransaksi={(v) => save("transaksi", v)} />}
           {active === "agenda" && <AgendaView agenda={data.agenda} setAgenda={(v) => save("agenda", v)} peminjaman={data.peminjaman} inventaris={data.inventaris} />}
           {active === "absensi" && <AbsensiView agenda={data.agenda} absensi={data.absensi} setAbsensi={(v) => save("absensi", v)} anggota={data.anggota} />}
         </main>
