@@ -10,6 +10,8 @@ export const KEBUTUHAN_KELUAR = [
   "Sewa Tempat/Alat", "Perlengkapan Acara", "Kesekretariatan", "Lainnya",
 ];
 
+export const DANA_DARURAT = 200000;
+
 export const monthOf = (iso) => (iso || "").slice(0, 7);
 
 /** Total setoran mingguan semua anggota pada satu bulan */
