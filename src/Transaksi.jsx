@@ -4,7 +4,7 @@ import {
   C, Btn, Field, Input, Select, Card, Empty, Badge,
   rupiah, todayISO, uid, monthKeyLabel,
 } from "./ui.jsx";
-import { KEBUTUHAN_MASUK, KEBUTUHAN_KELUAR, monthOf } from "./finance.js";
+import { KEBUTUHAN_MASUK, KEBUTUHAN_KELUAR, monthOf, DANA_DARURAT } from "./finance.js";
 
 const blank = () => ({
   tanggal: todayISO(), jenis: "Pengeluaran", kebutuhan: "",
@@ -91,6 +91,17 @@ export default function TransaksiView({ transaksi, setTransaksi }) {
     return { masuk, keluar, selisih: masuk - keluar };
   }, [shown]);
 
+  const totalSemua = useMemo(() => {
+    let masuk = 0, keluar = 0;
+    transaksi.forEach((t) => {
+      const n = Number(t.nominal) || 0;
+      if ((t.jenis || "Pemasukan") === "Pengeluaran") keluar += n; else masuk += n;
+    });
+    return masuk - keluar;
+  }, [transaksi]);
+
+  const periodeLabel = fBulan === "Semua" ? "semua bulan" : monthKeyLabel(fBulan);
+
   function add() {
     if (!draft.nominal || Number(draft.nominal) <= 0) return;
     if (!draft.kebutuhan.trim()) return;
@@ -136,21 +147,7 @@ export default function TransaksiView({ transaksi, setTransaksi }) {
         </div>
       </Card>
 
-      {/* RINGKASAN */}
-      <div className="grid grid-cols-3 gap-2">
-        {[
-          ["Pemasukan", sum.masuk, C.teal],
-          ["Pengeluaran", sum.keluar, C.rust],
-          ["Selisih", sum.selisih, sum.selisih < 0 ? C.rust : C.ink],
-        ].map(([label, val, col]) => (
-          <Card key={label} className="!p-3">
-            <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>{label}</p>
-            <p className="font-mono text-sm md:text-base mt-0.5" style={{ color: col }}>{rupiah(val)}</p>
-          </Card>
-        ))}
-      </div>
-
-      {/* FILTER */}
+      {/* FILTER + RINGKASAN */}
       <Card className="!py-3">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           <Field label="Jenis">
@@ -167,6 +164,26 @@ export default function TransaksiView({ transaksi, setTransaksi }) {
           <Field label="Cari"><Input value={q} placeholder="kebutuhan / keterangan" onChange={(e) => setQ(e.target.value)} /></Field>
         </div>
       </Card>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <Card className="!p-3">
+          <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Pemasukan</p>
+          <p className="font-mono text-sm md:text-base mt-0.5" style={{ color: C.teal }}>{rupiah(sum.masuk)}</p>
+          <p className="font-body text-[10px] mt-0.5" style={{ color: C.inkSoft }}>{periodeLabel}</p>
+        </Card>
+        <Card className="!p-3">
+          <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Pengeluaran</p>
+          <p className="font-mono text-sm md:text-base mt-0.5" style={{ color: C.rust }}>{rupiah(sum.keluar)}</p>
+          <p className="font-body text-[10px] mt-0.5" style={{ color: C.inkSoft }}>{periodeLabel}</p>
+        </Card>
+        <Card className="!p-3">
+          <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Total Seluruh Transaksi</p>
+          <p className="font-mono text-sm md:text-base mt-0.5" style={{ color: C.ink }}>{rupiah(totalSemua + DANA_DARURAT)}</p>
+          <p className="font-body text-[10px] mt-0.5" style={{ color: C.inkSoft }}>
+            {rupiah(totalSemua)} + dana darurat {rupiah(DANA_DARURAT)}
+          </p>
+        </Card>
+      </div>
 
       {/* TABEL */}
       {shown.length === 0 ? (
