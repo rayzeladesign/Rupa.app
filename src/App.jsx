@@ -11,7 +11,7 @@ import Login from "./Login.jsx";
 import InstallButton from "./InstallButton.jsx";
 import TransaksiView from "./Transaksi.jsx";
 import { BarMasukKeluar, LineSaldo, DonutKebutuhan, Legend } from "./Charts.jsx";
-import { buildFinance } from "./finance.js";
+import { buildFinance, DANA_DARURAT } from "./finance.js";
 import {
   C, FONTS, MONTHS_ID, todayISO, uid, rupiah, monthKeyLabel, generateMonthRange,
   Btn, Field, Input, Select, Card, Empty, Badge,
@@ -325,7 +325,6 @@ function PeminjamanView({ peminjaman, setPeminjaman, inventaris, anggota }) {
    KAS
 --------------------------------------------------------- */
 const IURAN_MINGGUAN = 3000;
-const DANA_DARURAT = 200000;
 
 function KasView({ kas, setKas, anggota, transaksi }) {
   const months = useMemo(() => generateMonthRange(kas.config.startMonth, kas.config.endMonth), [kas.config]);
@@ -474,13 +473,14 @@ function DashboardView({ data, goto, session }) {
   const today = todayISO();
   const agendaHariIni = data.agenda.filter((a) => a.tanggal === today).sort((a, b) => (a.waktu || "").localeCompare(b.waktu || ""));
   const barangDipinjam = data.peminjaman.filter((p) => p.status === "Dipinjam");
+  const totalUnitInventaris = data.inventaris.reduce((s, i) => s + (Number(i.jumlah) || 0), 0);
   const barangTerlambat = barangDipinjam.filter((p) => p.rencanaKembali && p.rencanaKembali < today);
   const pengajuanMenunggu = data.peminjaman.filter((p) => p.status === "Menunggu");
 
   const finance = buildFinance({ kas: data.kas, anggota: data.anggota, transaksi: data.transaksi || [] });
   const months = finance.months;
   const curMonth = months.find((m) => m >= today.slice(0, 7)) || months[months.length - 1];
-  const rowBulanIni = finance.rows.find((r) => r.key === curMonth);
+  const saldoTotal = finance.totals.saldo + DANA_DARURAT;
   let masukBulanIni = 0;
   data.anggota.forEach((a) => {
     const weeks = data.kas.setoran[a.id]?.[curMonth] || {};
@@ -515,6 +515,30 @@ function DashboardView({ data, goto, session }) {
         )}
       </Card>
 
+      {/* INVENTARIS & ANGGOTA */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card>
+          <div className="flex items-center gap-2 mb-2"><Package size={16} style={{ color: C.ochre }} /><h3 className="font-display text-base" style={{ color: C.ink }}>Inventaris</h3></div>
+          <p className="font-display text-2xl" style={{ color: C.ink }}>{totalUnitInventaris}<span className="font-body text-sm" style={{ color: C.inkSoft }}> unit barang</span></p>
+          <p className="font-body text-xs mt-1" style={{ color: C.inkSoft }}>
+            {data.inventaris.length} jenis barang · {barangDipinjam.length} sedang dipinjam
+          </p>
+          <p className="font-body text-xs" style={{ color: barangTerlambat.length ? C.rust : C.inkSoft }}>
+            {barangTerlambat.length} telat kembali · {pengajuanMenunggu.length} pengajuan menunggu
+          </p>
+          <div className="mt-3 flex gap-2 flex-wrap">
+            <Btn onClick={() => goto("inventaris")}>Buka Inventaris →</Btn>
+            <Btn onClick={() => goto("peminjaman")}>Peminjaman →</Btn>
+          </div>
+        </Card>
+        <Card>
+          <div className="flex items-center gap-2 mb-2"><Users size={16} style={{ color: C.ochre }} /><h3 className="font-display text-base" style={{ color: C.ink }}>Anggota</h3></div>
+          <p className="font-display text-2xl" style={{ color: C.ink }}>{data.anggota.length}</p>
+          <p className="font-body text-xs mt-1" style={{ color: C.inkSoft }}>anggota aktif tercatat</p>
+          <div className="mt-3"><Btn onClick={() => goto("anggota")}>Buka Anggota →</Btn></div>
+        </Card>
+      </div>
+
       {/* RINGKASAN KEUANGAN */}
       <Card>
         <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
@@ -525,7 +549,7 @@ function DashboardView({ data, goto, session }) {
           <Legend />
         </div>
 
-        <div className="grid grid-cols-3 gap-2 mb-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           <div>
             <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Total Pemasukan</p>
             <p className="font-display text-lg md:text-xl" style={{ color: C.teal }}>{rupiah(finance.totals.masuk)}</p>
@@ -535,8 +559,14 @@ function DashboardView({ data, goto, session }) {
             <p className="font-display text-lg md:text-xl" style={{ color: C.rust }}>{rupiah(finance.totals.keluar)}</p>
           </div>
           <div>
-            <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Saldo Kas</p>
-            <p className="font-display text-lg md:text-xl" style={{ color: finance.totals.saldo < 0 ? C.rust : C.ink }}>{rupiah(finance.totals.saldo)}</p>
+            <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Kas Anggota Bulan Ini</p>
+            <p className="font-display text-lg md:text-xl" style={{ color: C.ink }}>{rupiah(masukBulanIni)}</p>
+            <p className="font-body text-[10px] mt-0.5" style={{ color: C.inkSoft }}>{monthKeyLabel(curMonth)} · {belumLunasCount} belum setor</p>
+          </div>
+          <div>
+            <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Saldo Total</p>
+            <p className="font-display text-lg md:text-xl" style={{ color: saldoTotal < 0 ? C.rust : C.ink }}>{rupiah(saldoTotal)}</p>
+            <p className="font-body text-[10px] mt-0.5" style={{ color: C.inkSoft }}>termasuk dana darurat {rupiah(DANA_DARURAT)}</p>
           </div>
         </div>
 
@@ -565,30 +595,9 @@ function DashboardView({ data, goto, session }) {
 
         <div className="mt-4 flex gap-2 flex-wrap">
           <Btn variant="ochre" onClick={() => goto("transaksi")}>Catat Transaksi →</Btn>
-          <Btn onClick={() => goto("kas")}>Rekap Kas →</Btn>
+          <Btn onClick={() => goto("kas")}>Buka Kas →</Btn>
         </div>
       </Card>
-
-      <div className="grid md:grid-cols-3 gap-4">
-        <Card>
-          <div className="flex items-center gap-2 mb-2"><Wallet size={16} style={{ color: C.ochre }} /><h3 className="font-display text-base" style={{ color: C.ink }}>Kas Bulan Ini</h3></div>
-          <p className="font-display text-2xl" style={{ color: C.teal }}>{rupiah(masukBulanIni)}</p>
-          <p className="font-body text-xs mt-1" style={{ color: C.inkSoft }}>{curMonth ? monthKeyLabel(curMonth) : "—"} · {belumLunasCount} anggota belum setor bulan ini</p>
-          <div className="mt-3"><Btn onClick={() => goto("kas")}>Buka Kas →</Btn></div>
-        </Card>
-        <Card>
-          <div className="flex items-center gap-2 mb-2"><Package size={16} style={{ color: C.ochre }} /><h3 className="font-display text-base" style={{ color: C.ink }}>Inventaris</h3></div>
-          <p className="font-display text-2xl" style={{ color: barangTerlambat.length ? C.rust : C.ink }}>{barangDipinjam.length}<span className="font-body text-sm" style={{ color: C.inkSoft }}> sedang dipinjam</span></p>
-          <p className="font-body text-xs mt-1" style={{ color: C.inkSoft }}>{barangTerlambat.length} telat kembali · {pengajuanMenunggu.length} pengajuan menunggu</p>
-          <div className="mt-3"><Btn onClick={() => goto("peminjaman")}>Buka Peminjaman →</Btn></div>
-        </Card>
-        <Card>
-          <div className="flex items-center gap-2 mb-2"><Users size={16} style={{ color: C.ochre }} /><h3 className="font-display text-base" style={{ color: C.ink }}>Anggota</h3></div>
-          <p className="font-display text-2xl" style={{ color: C.ink }}>{data.anggota.length}</p>
-          <p className="font-body text-xs mt-1" style={{ color: C.inkSoft }}>anggota aktif tercatat</p>
-          <div className="mt-3"><Btn onClick={() => goto("anggota")}>Buka Anggota →</Btn></div>
-        </Card>
-      </div>
 
       {barangTerlambat.length > 0 && (
         <Card>
