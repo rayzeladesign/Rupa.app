@@ -5,6 +5,7 @@ import {
   rupiah, todayISO, uid, monthKeyLabel,
 } from "./ui.jsx";
 import { KEBUTUHAN_MASUK, KEBUTUHAN_KELUAR, monthOf, DANA_DARURAT } from "./finance.js";
+import { syncToSheet } from "./sheetSync.js";
 
 const blank = () => ({
   tanggal: todayISO(), jenis: "Pengeluaran", kebutuhan: "",
@@ -105,16 +106,21 @@ export default function TransaksiView({ transaksi, setTransaksi }) {
   function add() {
     if (!draft.nominal || Number(draft.nominal) <= 0) return;
     if (!draft.kebutuhan.trim()) return;
-    setTransaksi([...transaksi, { id: uid(), ...draft, nominal: Number(draft.nominal) }]);
+    const item = { id: uid(), ...draft, nominal: Number(draft.nominal) };
+    setTransaksi([...transaksi, item]);
+    syncToSheet("add", item);
     setDraft({ ...blank(), jenis: draft.jenis });
   }
   function saveEdit() {
-    setTransaksi(transaksi.map((t) => (t.id === editId ? { ...editDraft, nominal: Number(editDraft.nominal) || 0 } : t)));
+    const item = { ...editDraft, nominal: Number(editDraft.nominal) || 0 };
+    setTransaksi(transaksi.map((t) => (t.id === editId ? item : t)));
+    syncToSheet("edit", item);
     setEditId(null); setEditDraft(null);
   }
   function remove(id) {
     if (!window.confirm("Hapus transaksi ini? Tidak bisa dibatalkan.")) return;
     setTransaksi(transaksi.filter((t) => t.id !== id));
+    syncToSheet("delete", { id });
   }
 
   return (
