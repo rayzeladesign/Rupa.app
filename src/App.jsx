@@ -847,7 +847,7 @@ function MainApp({ session, onLogout }) {
           {active === "inventaris" && <InventarisView inventaris={data.inventaris} setInventaris={(v) => save("inventaris", v)} peminjaman={data.peminjaman} />}
           {active === "peminjaman" && <PeminjamanView peminjaman={data.peminjaman} setPeminjaman={(v) => save("peminjaman", v)} inventaris={data.inventaris} anggota={data.anggota} />}
           {active === "kas" && <KasView kas={data.kas} setKas={(v) => save("kas", v)} anggota={data.anggota} transaksi={data.transaksi || []} />}
-          {active === "transaksi" && <TransaksiView transaksi={data.transaksi || []} setTransaksi={(v) => save("transaksi", v)} />}
+          {active === "transaksi" && <TransaksiView transaksi={data.transaksi || []} setTransaksi={(v) => save("transaksi", v)} anggota={data.anggota} kas={data.kas} />}
           {active === "agenda" && <AgendaView agenda={data.agenda} setAgenda={(v) => save("agenda", v)} peminjaman={data.peminjaman} inventaris={data.inventaris} />}
           {active === "absensi" && <AbsensiView agenda={data.agenda} absensi={data.absensi} setAbsensi={(v) => save("absensi", v)} anggota={data.anggota} />}
         </main>
