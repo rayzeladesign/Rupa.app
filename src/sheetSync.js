@@ -1,6 +1,6 @@
 // Ganti dengan URL hasil "Deploy > New deployment > Web app" di Apps Script.
 // Contoh: https://script.google.com/macros/s/AKfycb..../exec
-const SHEET_WEBHOOK_URL = "PASTE_URL_DEPLOYMENT_DI_SINI";
+const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxaYc0W7-YA0BAmG1p7NrIItp2jmOBXIgzxCLt298lnli-fJ1-lMyKZZmLtx8adV3qA/exec";
 
 /**
  * Kirim perubahan transaksi ke Google Sheets sebagai salinan.
