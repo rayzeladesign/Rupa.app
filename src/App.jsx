@@ -14,7 +14,7 @@ import { BarMasukKeluar, LineSaldo, DonutKebutuhan, Legend } from "./Charts.jsx"
 import { buildFinance, DANA_DARURAT, monthOf } from "./finance.js";
 import {
   C, FONTS, MONTHS_ID, todayISO, uid, rupiah, monthKeyLabel, generateMonthRange,
-  Btn, Field, Input, Select, Card, Empty, Badge,
+  Btn, Field, Input, Select, Card, Empty, Badge, SearchBox,
 } from "./ui.jsx";
 import logo from "./assets/logo-256.png";
 
