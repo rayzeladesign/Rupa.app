@@ -11,7 +11,7 @@ import Login from "./Login.jsx";
 import InstallButton from "./InstallButton.jsx";
 import TransaksiView from "./Transaksi.jsx";
 import { BarMasukKeluar, LineSaldo, DonutKebutuhan, Legend } from "./Charts.jsx";
-import { buildFinance, DANA_DARURAT } from "./finance.js";
+import { buildFinance, DANA_DARURAT, monthOf } from "./finance.js";
 import {
   C, FONTS, MONTHS_ID, todayISO, uid, rupiah, monthKeyLabel, generateMonthRange,
   Btn, Field, Input, Select, Card, Empty, Badge,
@@ -107,11 +107,18 @@ function CrudSection({ title, subtitle, icon: Icon, columns, rows, onChange, ext
   const [draft, setDraft] = useState(emptyRow(columns));
   const [editId, setEditId] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
+  const [q, setQ] = useState("");
 
   const sorted = useMemo(() => {
     if (!sortKey) return rows;
     return [...rows].sort((a, b) => String(a[sortKey] || "").localeCompare(String(b[sortKey] || "")));
   }, [rows, sortKey]);
+
+  const shown = useMemo(() => {
+    if (!q.trim()) return sorted;
+    const needle = q.trim().toLowerCase();
+    return sorted.filter((row) => columns.some((c) => String(row[c.key] || "").toLowerCase().includes(needle)));
+  }, [sorted, q, columns]);
 
   function add() {
     if (!draft[columns[0].key]) return;
@@ -129,12 +136,15 @@ function CrudSection({ title, subtitle, icon: Icon, columns, rows, onChange, ext
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <Icon size={20} style={{ color: C.ochre }} />
-        <div>
-          <h2 className="font-display text-xl" style={{ color: C.ink }}>{title}</h2>
-          <p className="font-body text-xs" style={{ color: C.inkSoft }}>{subtitle}</p>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Icon size={20} style={{ color: C.ochre }} />
+          <div>
+            <h2 className="font-display text-xl" style={{ color: C.ink }}>{title}</h2>
+            <p className="font-body text-xs" style={{ color: C.inkSoft }}>{subtitle}</p>
+          </div>
         </div>
+        <div className="w-full sm:w-56"><SearchBox value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Cari ${title.toLowerCase()}...`} /></div>
       </div>
 
       <Card>
@@ -144,17 +154,21 @@ function CrudSection({ title, subtitle, icon: Icon, columns, rows, onChange, ext
         </div>
       </Card>
 
-      {sorted.length === 0 ? <Empty text={`Belum ada data. Tambahkan ${title.toLowerCase()} pertama lewat form di atas.`} /> : (
+      {shown.length === 0 ? (
+        <Empty text={rows.length === 0 ? `Belum ada data. Tambahkan ${title.toLowerCase()} pertama lewat form di atas.` : `Tidak ada ${title.toLowerCase()} yang cocok dengan pencarian.`} />
+      ) : (
         <div className="overflow-x-auto rounded-md" style={{ border: `1px solid ${C.line}` }}>
           <table className="w-full text-sm font-body" style={{ background: C.card }}>
             <thead><tr style={{ background: C.paperAlt }}>
+              <th className="text-left px-3 py-2 font-medium w-10" style={{ color: C.inkSoft }}>No</th>
               {columns.map((c) => <th key={c.key} className="text-left px-3 py-2 font-medium" style={{ color: C.inkSoft }}>{c.label}</th>)}
               {extraCol && <th className="text-left px-3 py-2 font-medium" style={{ color: C.inkSoft }}>{extraCol.label}</th>}
               <th className="px-3 py-2"></th>
             </tr></thead>
             <tbody>
-              {sorted.map((row) => (
+              {shown.map((row, i) => (
                 <tr key={row.id} style={{ borderTop: `1px solid ${C.lineSoft}` }}>
+                  <td className="px-3 py-2 font-mono text-xs" style={{ color: C.inkSoft }}>{i + 1}</td>
                   {columns.map((c) => (
                     <td key={c.key} className="px-3 py-2">
                       {editId === row.id ? renderInput(c, editDraft[c.key], (v) => setEditDraft({ ...editDraft, [c.key]: v })) : (row[c.key] || <span style={{ color: C.line }}>—</span>)}
@@ -334,6 +348,8 @@ function KasView({ kas, setKas, anggota, transaksi }) {
     return idx >= 0 ? idx : 0;
   });
   const monthKey = months[monthIdx] || months[0];
+  const [qAnggota, setQAnggota] = useState("");
+  const [qBulan, setQBulan] = useState("");
 
   function setStatus(anggotaId, week, value) {
     const setoran = { ...kas.setoran };
@@ -359,6 +375,18 @@ function KasView({ kas, setKas, anggota, transaksi }) {
 
   const finance = useMemo(() => buildFinance({ kas, anggota, transaksi }), [kas, anggota, transaksi]);
   const rekapRows = finance.rows;
+
+  const anggotaShown = useMemo(() => {
+    if (!qAnggota.trim()) return anggota;
+    const needle = qAnggota.trim().toLowerCase();
+    return anggota.filter((a) => (a.nama || "").toLowerCase().includes(needle));
+  }, [anggota, qAnggota]);
+
+  const rekapShown = useMemo(() => {
+    if (!qBulan.trim()) return rekapRows;
+    const needle = qBulan.trim().toLowerCase();
+    return rekapRows.filter((r) => monthKeyLabel(r.key).toLowerCase().includes(needle));
+  }, [rekapRows, qBulan]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -393,24 +421,30 @@ function KasView({ kas, setKas, anggota, transaksi }) {
         <>
           {anggota.length === 0 ? <Empty text="Tambahkan anggota dulu di menu Anggota sebelum mencatat setoran kas." /> : (
             <>
-              <div className="flex items-center gap-2">
-                <Btn icon={ChevronLeft} onClick={() => setMonthIdx(Math.max(0, monthIdx - 1))} />
-                <span className="font-display text-lg px-2" style={{ color: C.ink }}>{monthKeyLabel(monthKey)}</span>
-                <Btn icon={ChevronRight} onClick={() => setMonthIdx(Math.min(months.length - 1, monthIdx + 1))} />
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <Btn icon={ChevronLeft} onClick={() => setMonthIdx(Math.max(0, monthIdx - 1))} />
+                  <span className="font-display text-lg px-2" style={{ color: C.ink }}>{monthKeyLabel(monthKey)}</span>
+                  <Btn icon={ChevronRight} onClick={() => setMonthIdx(Math.min(months.length - 1, monthIdx + 1))} />
+                </div>
+                <div className="w-full sm:w-56"><SearchBox value={qAnggota} onChange={(e) => setQAnggota(e.target.value)} placeholder="Cari anggota..." /></div>
               </div>
+              {anggotaShown.length === 0 ? <Empty text="Tidak ada anggota yang cocok dengan pencarian." /> : (
               <div className="overflow-x-auto rounded-md" style={{ border: `1px solid ${C.line}` }}>
                 <table className="w-full text-sm font-body" style={{ background: C.card }}>
                   <thead><tr style={{ background: C.paperAlt }}>
+                    <th className="text-left px-3 py-2 font-medium w-10" style={{ color: C.inkSoft }}>No</th>
                     <th className="text-left px-3 py-2 font-medium" style={{ color: C.inkSoft }}>Anggota</th>
                     {[1, 2, 3, 4].map((w) => <th key={w} className="px-3 py-2 font-medium" style={{ color: C.inkSoft }}>Mgu {w}</th>)}
                     <th className="px-3 py-2 font-medium" style={{ color: C.inkSoft }}>Total Bayar</th>
                   </tr></thead>
                   <tbody>
-                    {anggota.map((a) => {
+                    {anggotaShown.map((a, i) => {
                       const weeks = kas.setoran[a.id]?.[monthKey] || {};
                       const bayarAnggota = Object.values(kas.setoran[a.id] || {}).reduce((s, wk) => s + Object.values(wk).reduce((ss, v) => ss + (Number(v) || 0), 0), 0);
                       return (
                         <tr key={a.id} style={{ borderTop: `1px solid ${C.lineSoft}` }}>
+                          <td className="px-3 py-2 font-mono text-xs" style={{ color: C.inkSoft }}>{i + 1}</td>
                           <td className="px-3 py-2">{a.nama}</td>
                           {[1, 2, 3, 4].map((w) => (
                             <td key={w} className="px-2 py-2">
@@ -424,6 +458,7 @@ function KasView({ kas, setKas, anggota, transaksi }) {
                   </tbody>
                 </table>
               </div>
+              )}
             </>
           )}
         </>
@@ -436,14 +471,18 @@ function KasView({ kas, setKas, anggota, transaksi }) {
             Kolom <b>Transaksi</b> terisi otomatis dari menu Transaksi. Kolom <b>Penyesuaian</b> dipakai kalau ada angka lama atau koreksi yang tidak punya catatan transaksi.
           </p>
         </Card>
+        <div className="flex justify-end"><div className="w-full sm:w-56"><SearchBox value={qBulan} onChange={(e) => setQBulan(e.target.value)} placeholder="Cari bulan..." /></div></div>
+        {rekapShown.length === 0 ? <Empty text="Tidak ada bulan yang cocok dengan pencarian." /> : (
         <div className="overflow-x-auto rounded-md" style={{ border: `1px solid ${C.line}` }}>
           <table className="w-full text-sm font-body" style={{ background: C.card }}>
             <thead><tr style={{ background: C.paperAlt }}>
+              <th className="text-left px-3 py-2 font-medium w-10" style={{ color: C.inkSoft }}>No</th>
               {["Bulan","Setoran Anggota","Pemasukan (Transaksi)","Pengeluaran (Transaksi)","Penyesuaian Masuk","Penyesuaian Keluar","Total Masuk","Total Keluar","Saldo Bulan","Saldo Kumulatif","Bendahara/PJ"].map((h) => <th key={h} className="text-left px-3 py-2 font-medium whitespace-nowrap" style={{ color: C.inkSoft }}>{h}</th>)}
             </tr></thead>
             <tbody>
-              {rekapRows.map((r) => (
+              {rekapShown.map((r, i) => (
                 <tr key={r.key} style={{ borderTop: `1px solid ${C.lineSoft}` }}>
+                  <td className="px-3 py-2 font-mono text-xs" style={{ color: C.inkSoft }}>{i + 1}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{monthKeyLabel(r.key)}</td>
                   <td className="px-3 py-2 font-mono">{rupiah(r.masukAnggota)}</td>
                   <td className="px-3 py-2 font-mono" style={{ color: C.teal }}>{rupiah(r.masukTrans)}</td>
@@ -460,6 +499,7 @@ function KasView({ kas, setKas, anggota, transaksi }) {
             </tbody>
           </table>
         </div>
+        )}
         </>
       )}
     </div>
@@ -491,6 +531,39 @@ function DashboardView({ data, goto, session }) {
     const total = Object.values(weeks).reduce((s, v) => s + (Number(v) || 0), 0);
     return total === 0;
   }).length;
+
+  /* ---- Filter Bulan & Minggu untuk blok Keuangan ---- */
+  const [filterMonth, setFilterMonth] = useState("Semua");
+  const [filterWeek, setFilterWeek] = useState("Semua");
+  const weekOfMonth = (tanggal) => {
+    const d = Number((tanggal || "").slice(8, 10));
+    if (d <= 7) return 1;
+    if (d <= 14) return 2;
+    if (d <= 21) return 3;
+    return 4;
+  };
+  const rowBulanTerpilih = filterMonth !== "Semua" ? finance.rows.find((r) => r.key === filterMonth) : null;
+
+  let keuangan; // { masuk, keluar, kasAnggota, saldo, label }
+  if (filterMonth === "Semua") {
+    keuangan = { masuk: finance.totals.masuk, keluar: finance.totals.keluar, kasAnggota: masukBulanIni, saldo: saldoTotal, label: null };
+  } else if (filterWeek === "Semua") {
+    keuangan = {
+      masuk: rowBulanTerpilih?.masuk || 0, keluar: rowBulanTerpilih?.keluar || 0,
+      kasAnggota: rowBulanTerpilih?.masukAnggota || 0, saldo: (rowBulanTerpilih?.saldoKum || 0) + DANA_DARURAT,
+      label: monthKeyLabel(filterMonth),
+    };
+  } else {
+    const trans = (data.transaksi || []).filter((t) => monthOf(t.tanggal) === filterMonth && weekOfMonth(t.tanggal) === Number(filterWeek));
+    const transMasuk = trans.filter((t) => (t.jenis || "Pemasukan") !== "Pengeluaran").reduce((s, t) => s + (Number(t.nominal) || 0), 0);
+    const transKeluar = trans.filter((t) => t.jenis === "Pengeluaran").reduce((s, t) => s + (Number(t.nominal) || 0), 0);
+    const setoranMinggu = data.anggota.reduce((s, a) => s + (Number(data.kas.setoran?.[a.id]?.[filterMonth]?.[filterWeek]) || 0), 0);
+    keuangan = {
+      masuk: transMasuk + setoranMinggu, keluar: transKeluar, kasAnggota: setoranMinggu,
+      saldo: (rowBulanTerpilih?.saldoKum || 0) + DANA_DARURAT,
+      label: `${monthKeyLabel(filterMonth)} · Minggu ${filterWeek}`,
+    };
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -541,7 +614,7 @@ function DashboardView({ data, goto, session }) {
 
       {/* RINGKASAN KEUANGAN */}
       <Card>
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
           <div className="flex items-center gap-2">
             <TrendingUp size={16} style={{ color: C.ochre }} />
             <h3 className="font-display text-base" style={{ color: C.ink }}>Keuangan Sub Rupa</h3>
@@ -549,26 +622,49 @@ function DashboardView({ data, goto, session }) {
           <Legend />
         </div>
 
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          <span className="font-body text-xs" style={{ color: C.inkSoft }}>Filter:</span>
+          <Select className="!w-auto" value={filterMonth} onChange={(e) => { setFilterMonth(e.target.value); setFilterWeek("Semua"); }}>
+            <option value="Semua">Semua Bulan</option>
+            {finance.months.map((m) => <option key={m} value={m}>{monthKeyLabel(m)}</option>)}
+          </Select>
+          <Select className="!w-auto" value={filterWeek} onChange={(e) => setFilterWeek(e.target.value)} disabled={filterMonth === "Semua"}>
+            <option value="Semua">Semua Minggu</option>
+            {[1, 2, 3, 4].map((w) => <option key={w} value={w}>Minggu {w}</option>)}
+          </Select>
+          {filterMonth !== "Semua" && (
+            <button onClick={() => { setFilterMonth("Semua"); setFilterWeek("Semua"); }} className="font-body text-xs underline hover:opacity-70" style={{ color: C.ochre }}>Reset</button>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           <div>
             <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Total Pemasukan</p>
-            <p className="font-display text-lg md:text-xl" style={{ color: C.teal }}>{rupiah(finance.totals.masuk)}</p>
+            <p className="font-display text-lg md:text-xl" style={{ color: C.teal }}>{rupiah(keuangan.masuk)}</p>
           </div>
           <div>
             <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Total Pengeluaran</p>
-            <p className="font-display text-lg md:text-xl" style={{ color: C.rust }}>{rupiah(finance.totals.keluar)}</p>
+            <p className="font-display text-lg md:text-xl" style={{ color: C.rust }}>{rupiah(keuangan.keluar)}</p>
           </div>
           <div>
-            <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Kas Anggota Bulan Ini</p>
-            <p className="font-display text-lg md:text-xl" style={{ color: C.ink }}>{rupiah(masukBulanIni)}</p>
-            <p className="font-body text-[10px] mt-0.5" style={{ color: C.inkSoft }}>{monthKeyLabel(curMonth)} · {belumLunasCount} belum setor</p>
+            <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Kas Anggota{filterMonth === "Semua" ? " Bulan Ini" : ""}</p>
+            <p className="font-display text-lg md:text-xl" style={{ color: C.ink }}>{rupiah(keuangan.kasAnggota)}</p>
+            <p className="font-body text-[10px] mt-0.5" style={{ color: C.inkSoft }}>
+              {filterMonth === "Semua" ? `${monthKeyLabel(curMonth)} · ${belumLunasCount} belum setor` : keuangan.label}
+            </p>
           </div>
           <div>
-            <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Saldo Total</p>
-            <p className="font-display text-lg md:text-xl" style={{ color: saldoTotal < 0 ? C.rust : C.ink }}>{rupiah(saldoTotal)}</p>
+            <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Saldo{filterMonth === "Semua" ? " Total" : " s/d Bulan Ini"}</p>
+            <p className="font-display text-lg md:text-xl" style={{ color: keuangan.saldo < 0 ? C.rust : C.ink }}>{rupiah(keuangan.saldo)}</p>
             <p className="font-body text-[10px] mt-0.5" style={{ color: C.inkSoft }}>termasuk dana darurat {rupiah(DANA_DARURAT)}</p>
           </div>
         </div>
+
+        {filterMonth !== "Semua" && filterWeek !== "Semua" && (
+          <p className="font-body text-[11px] mb-4 -mt-3" style={{ color: C.inkSoft }}>
+            *Pemasukan &amp; pengeluaran khusus {keuangan.label}. Belum termasuk penyesuaian manual bulanan (lihat tab Rekap Bulanan di menu Kas).
+          </p>
+        )}
 
         {finance.totals.masuk === 0 && finance.totals.keluar === 0 ? (
           <p className="font-body text-sm" style={{ color: C.inkSoft }}>Belum ada data keuangan. Catat setoran di menu Kas atau pemasukan/pengeluaran di menu Transaksi.</p>
@@ -662,6 +758,8 @@ const STATUS_TONE = { Hadir: "teal", Izin: "ochre", Sakit: "ochre", Alpa: "rust"
 function AbsensiView({ agenda, absensi, setAbsensi, anggota }) {
   const sortedAgenda = useMemo(() => [...agenda].sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || "")), [agenda]);
   const [agendaId, setAgendaId] = useState(() => sortedAgenda.find((a) => a.tanggal === todayISO())?.id || sortedAgenda[0]?.id || "");
+  const [qAbsen, setQAbsen] = useState("");
+  const [qRekap, setQRekap] = useState("");
 
   useEffect(() => {
     if (!agendaId && sortedAgenda.length) setAgendaId(sortedAgenda[0].id);
@@ -689,6 +787,18 @@ function AbsensiView({ agenda, absensi, setAbsensi, anggota }) {
     });
   }, [agenda, absensi, anggota]);
 
+  const anggotaShown = useMemo(() => {
+    if (!qAbsen.trim()) return anggota;
+    const needle = qAbsen.trim().toLowerCase();
+    return anggota.filter((a) => (a.nama || "").toLowerCase().includes(needle));
+  }, [anggota, qAbsen]);
+
+  const rekapShown = useMemo(() => {
+    if (!qRekap.trim()) return rekap;
+    const needle = qRekap.trim().toLowerCase();
+    return rekap.filter((r) => (r.nama || "").toLowerCase().includes(needle));
+  }, [rekap, qRekap]);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
@@ -708,18 +818,23 @@ function AbsensiView({ agenda, absensi, setAbsensi, anggota }) {
           </Card>
 
           {current && (
+            <>
+            <div className="flex justify-end"><div className="w-full sm:w-56"><SearchBox value={qAbsen} onChange={(e) => setQAbsen(e.target.value)} placeholder="Cari anggota..." /></div></div>
+            {anggotaShown.length === 0 ? <Empty text="Tidak ada anggota yang cocok dengan pencarian." /> : (
             <div className="overflow-x-auto rounded-md" style={{ border: `1px solid ${C.line}` }}>
               <table className="w-full text-sm font-body" style={{ background: C.card }}>
                 <thead><tr style={{ background: C.paperAlt }}>
+                  <th className="text-left px-3 py-2 font-medium w-10" style={{ color: C.inkSoft }}>No</th>
                   <th className="text-left px-3 py-2 font-medium" style={{ color: C.inkSoft }}>Anggota</th>
                   <th className="text-left px-3 py-2 font-medium" style={{ color: C.inkSoft }}>Status</th>
                   <th className="text-left px-3 py-2 font-medium" style={{ color: C.inkSoft }}>Keterangan</th>
                 </tr></thead>
                 <tbody>
-                  {anggota.map((a) => {
+                  {anggotaShown.map((a, i) => {
                     const st = rows[a.id]?.status || "";
                     return (
                       <tr key={a.id} style={{ borderTop: `1px solid ${C.lineSoft}` }}>
+                        <td className="px-3 py-2 font-mono text-xs" style={{ color: C.inkSoft }}>{i + 1}</td>
                         <td className="px-3 py-2">{a.nama}</td>
                         <td className="px-3 py-2">
                           <div className="flex gap-1 flex-wrap">
@@ -739,18 +854,26 @@ function AbsensiView({ agenda, absensi, setAbsensi, anggota }) {
                 </tbody>
               </table>
             </div>
+            )}
+            </>
           )}
 
           <div>
-            <h3 className="font-display text-base mb-2" style={{ color: C.ink }}>Rekap Kehadiran</h3>
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+              <h3 className="font-display text-base" style={{ color: C.ink }}>Rekap Kehadiran</h3>
+              <div className="w-full sm:w-56"><SearchBox value={qRekap} onChange={(e) => setQRekap(e.target.value)} placeholder="Cari anggota..." /></div>
+            </div>
+            {rekapShown.length === 0 ? <Empty text="Tidak ada anggota yang cocok dengan pencarian." /> : (
             <div className="overflow-x-auto rounded-md" style={{ border: `1px solid ${C.line}` }}>
               <table className="w-full text-sm font-body" style={{ background: C.card }}>
                 <thead><tr style={{ background: C.paperAlt }}>
+                  <th className="text-left px-3 py-2 font-medium w-10" style={{ color: C.inkSoft }}>No</th>
                   {["Anggota","Hadir","Kegiatan Tercatat","Persentase"].map((h) => <th key={h} className="text-left px-3 py-2 font-medium" style={{ color: C.inkSoft }}>{h}</th>)}
                 </tr></thead>
                 <tbody>
-                  {rekap.map((r) => (
+                  {rekapShown.map((r, i) => (
                     <tr key={r.nama} style={{ borderTop: `1px solid ${C.lineSoft}` }}>
+                      <td className="px-3 py-2 font-mono text-xs" style={{ color: C.inkSoft }}>{i + 1}</td>
                       <td className="px-3 py-2">{r.nama}</td>
                       <td className="px-3 py-2 font-mono">{r.hadir}</td>
                       <td className="px-3 py-2 font-mono">{r.tercatat}</td>
@@ -760,6 +883,7 @@ function AbsensiView({ agenda, absensi, setAbsensi, anggota }) {
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         </>
       )}
