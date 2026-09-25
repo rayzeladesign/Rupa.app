@@ -1,4 +1,5 @@
 import React from "react";
+import { Search } from "lucide-react";
 
 /* ---------------------------------------------------------
    PALETTE & TYPE — "studio kanvas": tinta gelap di atas kertas,
@@ -82,4 +83,14 @@ export function Badge({ children, tone = "ink" }) {
   const map = { ink: [C.paperAlt, C.ink], teal: [C.tealSoft, C.teal], rust: [C.rustSoft, C.rust], ochre: [C.ochreSoft, C.ochre] };
   const [bg, fg] = map[tone] || map.ink;
   return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: bg, color: fg }}>{children}</span>;
+}
+export function SearchBox({ value, onChange, placeholder = "Cari..." }) {
+  return (
+    <div className="relative">
+      <Search size={14} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: C.inkSoft, pointerEvents: "none" }} />
+      <input value={value} onChange={onChange} placeholder={placeholder}
+        className="font-body pl-7 pr-2 py-1.5 rounded-sm text-sm outline-none w-full"
+        style={inputStyle()} />
+    </div>
+  );
 }
