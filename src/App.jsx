@@ -11,7 +11,7 @@ import Login from "./Login.jsx";
 import InstallButton from "./InstallButton.jsx";
 import TransaksiView from "./Transaksi.jsx";
 import { BarMasukKeluar, LineSaldo, DonutKebutuhan, Legend } from "./Charts.jsx";
-import { buildFinance, DANA_DARURAT, monthOf } from "./finance.js";
+import { buildFinance, DANA_DARURAT, monthOf, setoranByMetode } from "./finance.js";
 import {
   C, FONTS, MONTHS_ID, todayISO, uid, rupiah, monthKeyLabel, generateMonthRange,
   Btn, Field, Input, Select, Card, Empty, Badge, SearchBox,
@@ -340,6 +340,23 @@ function PeminjamanView({ peminjaman, setPeminjaman, inventaris, anggota }) {
 --------------------------------------------------------- */
 const IURAN_MINGGUAN = 3000;
 
+function MetodePills({ value, onChange }) {
+  return (
+    <div className="flex gap-1 mt-1" title={value ? "" : "Belum ditandai — pilih Cash atau QRIS"}>
+      {[["cash", "Cash", C.teal], ["qris", "QRIS", C.ochre]].map(([k, label, col]) => {
+        const on = value === k;
+        return (
+          <button key={k} type="button" onClick={() => onChange(k)}
+            className="font-mono text-[10px] px-1.5 py-0.5 rounded-full border transition-opacity hover:opacity-80"
+            style={on ? { background: col, color: "#fff", borderColor: col } : { background: "transparent", color: C.inkSoft, borderColor: C.line }}>
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function KasView({ kas, setKas, anggota, transaksi }) {
   const months = useMemo(() => generateMonthRange(kas.config.startMonth, kas.config.endMonth), [kas.config]);
   const [tab, setTab] = useState("mingguan");
@@ -356,7 +373,20 @@ function KasView({ kas, setKas, anggota, transaksi }) {
     setoran[anggotaId] = { ...(setoran[anggotaId] || {}) };
     setoran[anggotaId][monthKey] = { ...(setoran[anggotaId][monthKey] || {}) };
     setoran[anggotaId][monthKey][week] = value;
-    setKas({ ...kas, setoran });
+    // Setoran baru otomatis ditandai Cash kalau belum ada metodenya (bisa diganti ke QRIS)
+    let metode = kas.metode;
+    if (Number(value) > 0 && !kas.metode?.[anggotaId]?.[monthKey]?.[week]) {
+      metode = { ...(kas.metode || {}) };
+      metode[anggotaId] = { ...(metode[anggotaId] || {}) };
+      metode[anggotaId][monthKey] = { ...(metode[anggotaId][monthKey] || {}), [week]: "cash" };
+    }
+    setKas({ ...kas, setoran, ...(metode ? { metode } : {}) });
+  }
+  function setMetode(anggotaId, week, metodeBayar) {
+    const metode = { ...(kas.metode || {}) };
+    metode[anggotaId] = { ...(metode[anggotaId] || {}) };
+    metode[anggotaId][monthKey] = { ...(metode[anggotaId][monthKey] || {}), [week]: metodeBayar };
+    setKas({ ...kas, metode });
   }
   function setBulanan(key, field, value) {
     const bulanan = { ...kas.bulanan, [key]: { ...(kas.bulanan[key] || {}), [field]: value } };
@@ -375,6 +405,7 @@ function KasView({ kas, setKas, anggota, transaksi }) {
 
   const finance = useMemo(() => buildFinance({ kas, anggota, transaksi }), [kas, anggota, transaksi]);
   const rekapRows = finance.rows;
+  const metodeBulan = useMemo(() => setoranByMetode(kas, anggota, monthKey), [kas, anggota, monthKey]);
 
   const anggotaShown = useMemo(() => {
     if (!qAnggota.trim()) return anggota;
@@ -429,6 +460,25 @@ function KasView({ kas, setKas, anggota, transaksi }) {
                 </div>
                 <div className="w-full sm:w-56"><SearchBox value={qAnggota} onChange={(e) => setQAnggota(e.target.value)} placeholder="Cari anggota..." /></div>
               </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  ["Cash", metodeBulan.cash, C.teal],
+                  ["QRIS", metodeBulan.qris, C.ochre],
+                  ["Total Setoran", metodeBulan.cash + metodeBulan.qris + metodeBulan.belum, C.ink],
+                ].map(([label, val, col]) => (
+                  <Card key={label} className="!p-3">
+                    <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>{label} · {monthKeyLabel(monthKey)}</p>
+                    <p className="font-mono text-sm md:text-base mt-0.5" style={{ color: col }}>{rupiah(val)}</p>
+                  </Card>
+                ))}
+                {metodeBulan.belum > 0 && (
+                  <Card className="!p-3">
+                    <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Belum ditandai</p>
+                    <p className="font-mono text-sm md:text-base mt-0.5" style={{ color: C.rust }}>{rupiah(metodeBulan.belum)}</p>
+                    <p className="font-body text-[10px] mt-0.5" style={{ color: C.inkSoft }}>pilih Cash/QRIS di tiap setoran</p>
+                  </Card>
+                )}
+              </div>
               {anggotaShown.length === 0 ? <Empty text="Tidak ada anggota yang cocok dengan pencarian." /> : (
               <div className="overflow-x-auto rounded-md" style={{ border: `1px solid ${C.line}` }}>
                 <table className="w-full text-sm font-body" style={{ background: C.card }}>
@@ -449,6 +499,7 @@ function KasView({ kas, setKas, anggota, transaksi }) {
                           {[1, 2, 3, 4].map((w) => (
                             <td key={w} className="px-2 py-2">
                               <Input type="number" min="0" placeholder="0" value={weeks[w] || ""} onChange={(e) => setStatus(a.id, w, e.target.value)} />
+                              {Number(weeks[w]) > 0 && <MetodePills value={kas.metode?.[a.id]?.[monthKey]?.[w]} onChange={(m) => setMetode(a.id, w, m)} />}
                             </td>
                           ))}
                           <td className="px-3 py-2 font-mono text-xs">{rupiah(bayarAnggota)}</td>
@@ -477,7 +528,7 @@ function KasView({ kas, setKas, anggota, transaksi }) {
           <table className="w-full text-sm font-body" style={{ background: C.card }}>
             <thead><tr style={{ background: C.paperAlt }}>
               <th className="text-left px-3 py-2 font-medium w-10" style={{ color: C.inkSoft }}>No</th>
-              {["Bulan","Setoran Anggota","Pemasukan (Transaksi)","Pengeluaran (Transaksi)","Penyesuaian Masuk","Penyesuaian Keluar","Total Masuk","Total Keluar","Saldo Bulan","Saldo Kumulatif","Bendahara/PJ"].map((h) => <th key={h} className="text-left px-3 py-2 font-medium whitespace-nowrap" style={{ color: C.inkSoft }}>{h}</th>)}
+              {["Bulan","Setoran Anggota","Cash","QRIS","Belum Ditandai","Pemasukan (Transaksi)","Pengeluaran (Transaksi)","Penyesuaian Masuk","Penyesuaian Keluar","Total Masuk","Total Keluar","Saldo Bulan","Saldo Kumulatif","Bendahara/PJ"].map((h) => <th key={h} className="text-left px-3 py-2 font-medium whitespace-nowrap" style={{ color: C.inkSoft }}>{h}</th>)}
             </tr></thead>
             <tbody>
               {rekapShown.map((r, i) => (
@@ -485,6 +536,9 @@ function KasView({ kas, setKas, anggota, transaksi }) {
                   <td className="px-3 py-2 font-mono text-xs" style={{ color: C.inkSoft }}>{i + 1}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{monthKeyLabel(r.key)}</td>
                   <td className="px-3 py-2 font-mono">{rupiah(r.masukAnggota)}</td>
+                  <td className="px-3 py-2 font-mono" style={{ color: C.teal }}>{rupiah(r.setoranCash)}</td>
+                  <td className="px-3 py-2 font-mono" style={{ color: C.ochre }}>{rupiah(r.setoranQris)}</td>
+                  <td className="px-3 py-2 font-mono" style={{ color: r.setoranBelum ? C.rust : C.inkSoft }}>{rupiah(r.setoranBelum)}</td>
                   <td className="px-3 py-2 font-mono" style={{ color: C.teal }}>{rupiah(r.masukTrans)}</td>
                   <td className="px-3 py-2 font-mono" style={{ color: C.rust }}>{rupiah(r.keluarTrans)}</td>
                   <td className="px-2 py-2 w-24"><Input type="number" value={r.manualMasuk} onChange={(e) => setBulanan(r.key, "masukLain", e.target.value)} /></td>
@@ -546,20 +600,22 @@ function DashboardView({ data, goto, session }) {
 
   let keuangan; // { masuk, keluar, kasAnggota, saldo, label }
   if (filterMonth === "Semua") {
-    keuangan = { masuk: finance.totals.masuk, keluar: finance.totals.keluar, kasAnggota: masukBulanIni, saldo: saldoTotal, label: null };
+    const m = setoranByMetode(data.kas, data.anggota, curMonth);
+    keuangan = { masuk: finance.totals.masuk, keluar: finance.totals.keluar, kasAnggota: masukBulanIni, saldo: saldoTotal, label: null, cash: m.cash, qris: m.qris };
   } else if (filterWeek === "Semua") {
     keuangan = {
       masuk: rowBulanTerpilih?.masuk || 0, keluar: rowBulanTerpilih?.keluar || 0,
       kasAnggota: rowBulanTerpilih?.masukAnggota || 0, saldo: (rowBulanTerpilih?.saldoKum || 0) + DANA_DARURAT,
-      label: monthKeyLabel(filterMonth),
+      label: monthKeyLabel(filterMonth), cash: rowBulanTerpilih?.setoranCash || 0, qris: rowBulanTerpilih?.setoranQris || 0,
     };
   } else {
     const trans = (data.transaksi || []).filter((t) => monthOf(t.tanggal) === filterMonth && weekOfMonth(t.tanggal) === Number(filterWeek));
     const transMasuk = trans.filter((t) => (t.jenis || "Pemasukan") !== "Pengeluaran").reduce((s, t) => s + (Number(t.nominal) || 0), 0);
     const transKeluar = trans.filter((t) => t.jenis === "Pengeluaran").reduce((s, t) => s + (Number(t.nominal) || 0), 0);
     const setoranMinggu = data.anggota.reduce((s, a) => s + (Number(data.kas.setoran?.[a.id]?.[filterMonth]?.[filterWeek]) || 0), 0);
+    const mm = setoranByMetode(data.kas, data.anggota, filterMonth, filterWeek);
     keuangan = {
-      masuk: transMasuk + setoranMinggu, keluar: transKeluar, kasAnggota: setoranMinggu,
+      masuk: transMasuk + setoranMinggu, keluar: transKeluar, kasAnggota: setoranMinggu, cash: mm.cash, qris: mm.qris,
       saldo: (rowBulanTerpilih?.saldoKum || 0) + DANA_DARURAT,
       label: `${monthKeyLabel(filterMonth)} · Minggu ${filterWeek}`,
     };
@@ -652,6 +708,7 @@ function DashboardView({ data, goto, session }) {
             <p className="font-body text-[10px] mt-0.5" style={{ color: C.inkSoft }}>
               {filterMonth === "Semua" ? `${monthKeyLabel(curMonth)} · ${belumLunasCount} belum setor` : keuangan.label}
             </p>
+            <p className="font-body text-[10px]" style={{ color: C.inkSoft }}>Cash {rupiah(keuangan.cash)} · QRIS {rupiah(keuangan.qris)}</p>
           </div>
           <div>
             <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Saldo{filterMonth === "Semua" ? " Total" : " s/d Bulan Ini"}</p>

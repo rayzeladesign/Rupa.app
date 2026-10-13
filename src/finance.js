@@ -23,6 +23,28 @@ export function totalSetoranAnggota(kas, anggotaId) {
   );
 }
 
+/**
+ * Pecah setoran anggota berdasarkan metode bayar (Cash / QRIS).
+ * Data lama yang belum ditandai masuk ke "belum". Kalau `week` diisi,
+ * hanya minggu itu yang dihitung.
+ */
+export function setoranByMetode(kas, anggota, key, week) {
+  let cash = 0, qris = 0, belum = 0;
+  anggota.forEach((a) => {
+    const weeks = kas?.setoran?.[a.id]?.[key] || {};
+    Object.entries(weeks).forEach(([w, v]) => {
+      if (week && String(w) !== String(week)) return;
+      const n = Number(v) || 0;
+      if (!n) return;
+      const m = kas?.metode?.[a.id]?.[key]?.[w];
+      if (m === "cash") cash += n;
+      else if (m === "qris") qris += n;
+      else belum += n;
+    });
+  });
+  return { cash, qris, belum };
+}
+
 export function setoranBulan(kas, anggota, key) {
   let total = 0;
   anggota.forEach((a) => {
@@ -58,6 +80,7 @@ export function buildFinance({ kas, anggota = [], transaksi = [] }) {
   const rows = months.map((key) => {
     const b = kas?.bulanan?.[key] || {};
     const masukAnggota = setoranBulan(kas, anggota, key);
+    const metode = setoranByMetode(kas, anggota, key);
     const manualMasuk = Number(b.masukLain || 0);
     const manualKeluar = Number(b.keluar || 0);
     const masukTrans = perMonth[key].masukTrans;
@@ -67,7 +90,7 @@ export function buildFinance({ kas, anggota = [], transaksi = [] }) {
     const saldoBulan = masuk - keluar;
     saldoKum += saldoBulan;
     return {
-      key, masukAnggota, masukTrans, keluarTrans, manualMasuk, manualKeluar,
+      key, masukAnggota, setoranCash: metode.cash, setoranQris: metode.qris, setoranBelum: metode.belum, masukTrans, keluarTrans, manualMasuk, manualKeluar,
       masuk, keluar, saldoBulan, saldoKum,
       bendahara: b.bendahara || "", keterangan: b.keterangan || "",
     };
