@@ -340,7 +340,7 @@ function PeminjamanView({ peminjaman, setPeminjaman, inventaris, anggota }) {
 --------------------------------------------------------- */
 const IURAN_MINGGUAN = 3000;
 // Pengurus tidak ikut dalam peringkat "anggota tersemangat"
-const PENGURUS_NAMA = ["Zahra Auliya", "Siti Rohani", "Asrina Febry"];
+const PENGURUS_NAMA = ["Zahra Auliya", "Siti Rohani(Hani)", "Asrina Febry Az Zahro (Febry)"];
 const normNama = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
 
 function MetodePills({ value, onChange }) {
