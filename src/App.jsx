@@ -11,7 +11,7 @@ import Login from "./Login.jsx";
 import InstallButton from "./InstallButton.jsx";
 import TransaksiView from "./Transaksi.jsx";
 import { BarMasukKeluar, LineSaldo, DonutKebutuhan, Legend } from "./Charts.jsx";
-import { buildFinance, DANA_DARURAT, monthOf, setoranByMetode } from "./finance.js";
+import { buildFinance, DANA_DARURAT, monthOf, setoranByMetode, saldoSaatIni } from "./finance.js";
 import {
   C, FONTS, MONTHS_ID, todayISO, uid, rupiah, monthKeyLabel, generateMonthRange,
   Btn, Field, Input, Select, Card, Empty, Badge, SearchBox,
@@ -339,6 +339,9 @@ function PeminjamanView({ peminjaman, setPeminjaman, inventaris, anggota }) {
    KAS
 --------------------------------------------------------- */
 const IURAN_MINGGUAN = 3000;
+// Pengurus tidak ikut dalam peringkat "anggota tersemangat"
+const PENGURUS_NAMA = ["Zahra Auliya", "Siti Rohani", "Asrina Febry"];
+const normNama = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
 
 function MetodePills({ value, onChange }) {
   return (
@@ -575,6 +578,23 @@ function DashboardView({ data, goto, session }) {
   const months = finance.months;
   const curMonth = months.find((m) => m >= today.slice(0, 7)) || months[months.length - 1];
   const saldoTotal = finance.totals.saldo + DANA_DARURAT;
+  const saldoSekarang = saldoSaatIni({ kas: data.kas, anggota: data.anggota, transaksi: data.transaksi || [], today });
+
+  // 3 anggota tersemangat = kehadiran (status "Hadir") terbanyak di seluruh agenda
+  const pengurusSet = new Set(PENGURUS_NAMA.map(normNama));
+  const topSemangat = data.anggota
+    .filter((a) => !pengurusSet.has(normNama(a.nama)))
+    .map((a) => {
+      let hadir = 0, tercatat = 0;
+      data.agenda.forEach((ag) => {
+        const st = data.absensi?.[ag.id]?.[a.id]?.status;
+        if (st) { tercatat++; if (st === "Hadir") hadir++; }
+      });
+      return { id: a.id, nama: a.nama, hadir, tercatat };
+    })
+    .filter((x) => x.hadir > 0)
+    .sort((x, y) => y.hadir - x.hadir || (y.hadir / y.tercatat) - (x.hadir / x.tercatat) || (x.nama || "").localeCompare(y.nama || ""))
+    .slice(0, 3);
   let masukBulanIni = 0;
   data.anggota.forEach((a) => {
     const weeks = data.kas.setoran[a.id]?.[curMonth] || {};
@@ -664,7 +684,27 @@ function DashboardView({ data, goto, session }) {
           <div className="flex items-center gap-2 mb-2"><Users size={16} style={{ color: C.ochre }} /><h3 className="font-display text-base" style={{ color: C.ink }}>Anggota</h3></div>
           <p className="font-display text-2xl" style={{ color: C.ink }}>{data.anggota.length}</p>
           <p className="font-body text-xs mt-1" style={{ color: C.inkSoft }}>anggota aktif tercatat</p>
-          <div className="mt-3"><Btn onClick={() => goto("anggota")}>Buka Anggota →</Btn></div>
+          <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.lineSoft}` }}>
+            <p className="font-body text-[11px] mb-1.5" style={{ color: C.inkSoft }}>3 anggota tersemangat (akumulasi kehadiran)</p>
+            {topSemangat.length === 0 ? (
+              <p className="font-body text-xs" style={{ color: C.inkSoft }}>Belum ada data absensi.</p>
+            ) : (
+              <ol className="flex flex-col gap-1">
+                {topSemangat.map((x, i) => (
+                  <li key={x.id} className="flex items-center gap-2 font-body text-sm">
+                    <span className="font-mono text-[11px] w-4" style={{ color: C.ochre }}>{i + 1}</span>
+                    <span className="flex-1 truncate" style={{ color: C.ink }}>{x.nama}</span>
+                    <Badge tone="teal">{x.hadir}× hadir</Badge>
+                  </li>
+                ))}
+              </ol>
+            )}
+            <p className="font-body text-[10px] mt-1.5" style={{ color: C.inkSoft }}>tidak termasuk pengurus</p>
+          </div>
+          <div className="mt-3 flex gap-2 flex-wrap">
+            <Btn onClick={() => goto("anggota")}>Buka Anggota →</Btn>
+            <Btn onClick={() => goto("absensi")}>Absensi →</Btn>
+          </div>
         </Card>
       </div>
 
@@ -693,7 +733,7 @@ function DashboardView({ data, goto, session }) {
           )}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div className={"grid grid-cols-2 gap-3 mb-5 " + (filterMonth === "Semua" ? "md:grid-cols-5" : "md:grid-cols-4")}>
           <div>
             <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Total Pemasukan</p>
             <p className="font-display text-lg md:text-xl" style={{ color: C.teal }}>{rupiah(keuangan.masuk)}</p>
@@ -715,6 +755,13 @@ function DashboardView({ data, goto, session }) {
             <p className="font-display text-lg md:text-xl" style={{ color: keuangan.saldo < 0 ? C.rust : C.ink }}>{rupiah(keuangan.saldo)}</p>
             <p className="font-body text-[10px] mt-0.5" style={{ color: C.inkSoft }}>termasuk dana darurat {rupiah(DANA_DARURAT)}</p>
           </div>
+          {filterMonth === "Semua" && (
+            <div>
+              <p className="font-body text-[11px]" style={{ color: C.inkSoft }}>Saldo Saat Ini</p>
+              <p className="font-display text-lg md:text-xl" style={{ color: saldoSekarang < 0 ? C.rust : C.ink }}>{rupiah(saldoSekarang)}</p>
+              <p className="font-body text-[10px] mt-0.5" style={{ color: C.inkSoft }}>sampai hari ini, tanpa entri tanggal ke depan</p>
+            </div>
+          )}
         </div>
 
         {filterMonth !== "Semua" && filterWeek !== "Semua" && (

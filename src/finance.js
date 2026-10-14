@@ -113,3 +113,24 @@ export function buildFinance({ kas, anggota = [], transaksi = [] }) {
 
   return { months, rows, totals, keluarPerKebutuhan: byKebutuhan("Pengeluaran"), masukPerKebutuhan: byKebutuhan("Pemasukan") };
 }
+
+/**
+ * Saldo "saat ini": hanya menghitung yang sudah terjadi sampai hari ini.
+ * - setoran anggota & penyesuaian manual: bulan berjalan dan sebelumnya
+ * - transaksi: yang tanggalnya <= hari ini (entri bertanggal ke depan tidak ikut)
+ * + dana darurat
+ */
+export function saldoSaatIni({ kas, anggota = [], transaksi = [], today }) {
+  const nowMonth = today.slice(0, 7);
+  const base = buildFinance({ kas, anggota, transaksi: [] });
+  let total = 0;
+  base.rows.forEach((r) => {
+    if (r.key <= nowMonth) total += r.masukAnggota + r.manualMasuk - r.manualKeluar;
+  });
+  transaksi.forEach((t) => {
+    if ((t.tanggal || "") > today) return;
+    const n = Number(t.nominal) || 0;
+    total += (t.jenis || "Pemasukan") === "Pengeluaran" ? -n : n;
+  });
+  return total + DANA_DARURAT;
+}
